@@ -1,0 +1,42 @@
+Automação de Suporte ao Cliente (Gestão de Tickets).
+Você pode copiar as respostas abaixo para preencher o seu relatório, e usar o Prompt Final para gerar o arquivo de entrega.
+🧱 Passo 1: Defina a automação desejada
+Qual tarefa repetitiva você deseja automatizar?
+Receber e-mails de clientes pedindo suporte e transformá-los automaticamente em tickets de atendimento.
+Quem utilizará ou será impactado pela automação?
+Equipe de Suporte Técnico e Atendimento ao Cliente.
+Qual resultado final deve acontecer?
+Os e-mails de suporte serão convertidos em cartões em um quadro de tarefas (Kanban) e a equipe será notificada em tempo real para iniciar o atendimento.
+🧱 Passo 2: Adicione contexto e regras
+Quais ferramentas ou serviços participam da automação?
+Gmail, Trello e Slack.
+Quais etapas devem acontecer em sequência?
+Monitorar a caixa de entrada do Gmail em busca de novos e-mails.
+Criar um novo cartão no Trello com o assunto e o corpo do e-mail.
+Enviar uma mensagem no canal do Slack avisando sobre o novo ticket.
+Existe alguma regra, validação ou exceção?
+O fluxo só deve ser executado se o assunto do e-mail contiver as palavras "Suporte" ou "Dúvida". E-mails sem corpo de mensagem (apenas com anexos ou vazios) devem ser ignorados.
+🧱 Passo 3: Monte o prompt final (Arquivo para Entrega)
+Abaixo está o seu Prompt Final estruturado. É este texto que você deve salvar em um arquivo .txt ou .md para entregar na DIO.
+
+
+Atue como um especialista em N8N.
+
+Crie uma automação para gerenciar tickets de suporte a partir de e-mails recebidos.
+
+Público:
+Equipe de Suporte Técnico e Atendimento ao Cliente.
+
+Ferramentas envolvidas:
+Gmail, Trello e Slack.
+
+Fluxo:
+1. Monitorar a caixa de entrada do Gmail em busca de novos e-mails.
+2. Criar um novo cartão no Trello (com o assunto e o corpo do e-mail).
+3. Enviar uma mensagem de alerta no canal do Slack informando sobre o novo ticket.
+
+Regras:
+1. Filtrar e processar apenas e-mails cujo assunto contenha as palavras "Suporte" ou "Dúvida".
+2. Ignorar e-mails que não possuam corpo de mensagem (corpo vazio).
+
+Explique quais nós do N8N devem ser utilizados e a lógica de funcionamento do workflow.

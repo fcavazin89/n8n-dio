@@ -1,0 +1,281 @@
+
+ **Criando um Processo de RPA com N8N e Python**.
+
+O RPA (Robotic Process Automation) é a arte de fazer um "robô" repetir tarefas manuais e repetitivas. Quando juntamos o **n8n** com o **Python**, criamos uma combinação poderosa:
+* **O n8n** atua como o "Cérebro" (Orquestrador): Ele decide *quando* a tarefa vai rodar (ex: todo dia às 8h), trata erros e envia os resultados.
+* **O Python** atua como o "Braço" (Executor): Ele faz o trabalho pesado, como navegar em sites sem API, manipular arquivos Excel complexos ou interagir com sistemas legados.
+
+Aqui estão as **duas formas principais** de integrar Python e n8n para RPA. Vou te mostrar como configurar ambas!
+
+---
+
+### 🏗️ Arquitetura 1: O n8n chama um Script Python Local (Nó `Execute Command`)
+*Ideal se você roda o n8n na sua própria máquina (Self-hosted via Docker ou Desktop) e quer rodar um script Python que está salvo no seu computador.*
+
+**Cenário RPA:** O n8n roda todos os dias, chama um script Python que lê um arquivo CSV local, limpa os dados e salva um novo arquivo.
+
+**Passo a Passo no n8n:**
+1. Adicione um nó **Schedule Trigger** (Gatilho de Agendamento) para rodar, por exemplo, todo dia às 08:00.
+2. Adicione um nó **Execute Command** (Executar Comando).
+3. Configure o nó:
+   * **Command:** `python3 /caminho/para/seu/script_rpa.py` (ou `python` no Windows).
+   * Certifique-se de que o usuário que roda o n8n tem permissão para executar esse arquivo.
+4. O nó vai capturar qualquer coisa que o Python imprimir no console (usando `print()`) e passar para o próximo nó do n8n.
+
+---
+
+### 🏗️ Arquitetura 2: O Python roda em API/Webhook (Integração via HTTP)
+*Ideal se você usa o n8n na Nuvem (Cloud) ou se o script Python precisa rodar em um servidor específico (ou no Google Colab, como vimos antes).*
+
+**Cenário RPA:** O n8n envia um Webhook para um script Python (hospedado em um servidor Flask/FastAPI ou Colab). O Python faz o Web Scraping (RPA de extração de dados) e devolve o JSON para o n8n.
+
+**O Código Python (Exemplo de RPA de Web Scraping):**
+Imagine que você precisa extrair dados de um site que não tem API. O Python faz esse trabalho "sujo".
+
+```python
+# Exemplo de script Python para RPA de Web Scraping
+# Requer: pip install requests beautifulsoup4 flask
+
+from flask import Flask, jsonify
+import requests
+from bs4 import BeautifulSoup
+
+app = Flask(__name__)
+
+@app.route('/executar-rpa', methods=['GET'])
+def executar_rpa():
+    try:
+        # 1. O "Robô" acessa o site (Ex: Hacker News)
+        url = "https://news.ycombinator.com/"
+        response = requests.get(url)
+        soup = BeautifulSoup(response.text, 'html.parser')
+        
+        # 2. O "Robô" extrai os dados (Ex: Títulos das notícias)
+        titulos = []
+        for item in soup.find_all('span', class_='titleline')[:5]: # Pega os 5 primeiros
+            titulos.append(item.a.text)
+            
+        # 3. Devolve os dados para o n8n em formato JSON
+        return jsonify({"status": "sucesso", "noticias": titulos})
+    
+    except Exception as e:
+        return jsonify({"status": "erro", "mensagem": str(e)}), 500
+
+if __name__ == '__main__':
+    app.run(port=5000)
+```
+
+**Como o n8n chama esse RPA:**
+1. No n8n, adicione um nó **HTTP Request**.
+2. Configure:
+   * **Method:** `GET`
+   * **URL:** `http://localhost:5000/executar-rpa` (Se o Python rodar na sua máquina) ou a URL do seu servidor/Colab.
+3. O n8n vai receber o JSON com as notícias e pode, por exemplo, mandar para a IA ou salvar no Notion.
+
+---
+
+### 🛠️ Bibliotecas Python Essenciais para RPA no n8n
+
+Se você vai escrever scripts Python para o n8n executar, estas são as bibliotecas que você mais vai usar:
+
+1. **Para Web Scraping (RPA de Dados):**
+   * `BeautifulSoup` e `Requests`: Para sites estáticos.
+   * `Selenium` ou `Playwright`: Para sites dinâmicos que exigem clique, login ou rolagem de página (RPA de Navegador real).
+2. **Para Manipulação de Arquivos (RPA de Escritório):**
+   * `pandas`: Para ler/escrever Excel, CSV e JSON de forma pesada.
+   * `openpyxl`: Para manipular formatações específicas de Excel.
+3. **Para Automação de UI (RPA de Tela/Mouse e Teclado):**
+   * `PyAutoGUI`: Controla o mouse e teclado para clicar em sistemas legados (ex: um sistema ERP antigo que só funciona no navegador desktop).
+   * `pywin32`: Para interagir com aplicações nativas do Windows (ex: abrir o Outlook desktop, preencher planilhas locais).
+
+---
+
+
+
+Abaixo, preparei o código Python completo e pronto para rodar no Google Colab.
+
+---
+
+### Passo 1: Código Python para Google Colab
+
+Copie e cole este código em uma célula do seu **Google Colab**. Ele usa a biblioteca `yfinance` (gratuita e muito estável) para buscar dados de ações brasileiras e criptomoedas.
+
+```python
+# Instale as bibliotecas necessárias (execute apenas na primeira vez)
+!pip install yfinance requests -q
+
+import yfinance as yf
+import requests
+import json
+
+# 1. Defina os ativos que deseja monitorar (Ex: Petrobras, Vale e Bitcoin)
+tickers = ["PETR4.SA", "VALE3.SA", "BTC-USD"]
+
+# 2. Lista para armazenar os dados formatados
+dados_formatados = []
+
+for ticker in tickers:
+    try:
+        ativo = yf.Ticker(ticker)
+        info = ativo.info
+        
+        # Extrai as informações principais e trata valores nulos
+        preco = info.get("currentPrice") or info.get("regularMarketPrice", 0)
+        variacao = info.get("regularMarketChangePercent", 0) * 100 # Converte para porcentagem
+        
+        dados_formatados.append({
+            "ticker": ticker,
+            "nome": info.get("shortName", "Nome não disponível"),
+            "preco_atual": round(preco, 2),
+            "variacao_percentual": round(variacao, 2),
+            "recomendacao_analistas": info.get("recommendationKey", "N/A").upper()
+        })
+    except Exception as e:
+        print(f"⚠️ Erro ao buscar dados de {ticker}: {e}")
+
+# 3. Exibe o resultado no Colab para você conferir
+print("✅ Dados coletados com sucesso:")
+print(json.dumps(dados_formatados, indent=2, ensure_ascii=False))
+
+# ==============================================================================
+# 4. ENVIO PARA O N8N (Descomente e preencha a URL do seu Webhook quando estiver pronto)
+# ==============================================================================
+# webhook_url = "COLE_AQUI_A_URL_DO_SEU_WEBHOOK_DO_N8N"
+# headers = {"Content-Type": "application/json"}
+# 
+# try:
+#     response = requests.post(webhook_url, json=dados_formatados, headers=headers)
+#     if response.status_code == 200:
+#         print("🚀 Dados enviados com sucesso para o n8n!")
+#     else:
+#         print(f"❌ Erro ao enviar: {response.status_code} - {response.text}")
+# except Exception as e:
+#     print(f"❌ Falha na conexão com o webhook: {e}")
+```
+
+---
+
+### ⚙️ Passo 2: Como configurar o recebimento no n8n
+
+Para que o código acima funcione, você precisa criar o "ouvinte" no n8n:
+
+1. Abra seu canvas do n8n e adicione um nó **Webhook**.
+2. Configure o método HTTP como **POST**.
+3. Defina o caminho (Path) como algo simples, ex: `dados-mercado`.
+4. O n8n vai gerar uma URL (ex: `https://seu-n8n.com/webhook/dados-mercado`).
+5. **Copie essa URL** e cole na variável `webhook_url` do código Python acima (removendo os `#` de comentário).
+6. No nó Webhook do n8n, clique em **"Listen for Test Event"** (Ouvir evento de teste).
+7. Rode a célula do código no Google Colab.
+
+Se der tudo certo, o nó Webhook do n8n ficará verde e mostrará os dados chegando no formato JSON, assim:
+```json
+[
+  {
+    "ticker": "PETR4.SA",
+    "nome": "Petróleo Brasileiro S.A. - Petrobras",
+    "preco_atual": 38.50,
+    "variacao_percentual": 1.25,
+    "recomendacao_analistas": "COMPRA"
+  }
+]
+```
+
+---
+
+### 🧠 Dica de Ouro (Se quiser rodar direto no n8n sem Colab)
+O nó **Code** padrão do n8n usa **JavaScript**, não Python. Se o seu objetivo for rodar a busca *diretamente* dentro do n8n (sem depender do Colab), você pode usar um nó **HTTP Request** chamando uma API gratuita (como a da Yahoo Finance via RapidAPI) ou usar este código JavaScript no nó **Code**:
+
+```javascript
+// Exemplo simplificado de como estruturar os dados no nó Code (JavaScript) do n8n
+// Em um cenário real, você usaria um nó HTTP Request antes para buscar esses dados
+
+const dadosMercado = [
+  { ticker: "PETR4.SA", nome: "Petrobras", preco_atual: 38.50, variacao_percentual: 1.25 },
+  { ticker: "BTC-USD", nome: "Bitcoin", preco_atual: 65000.00, variacao_percentual: -0.80 }
+];
+
+// O n8n espera que o retorno seja um array de objetos com a chave "json"
+return dadosMercado.map(item => {
+  return { json: item };
+});
+```
+
+---
+
+Missão desbloqueada: **O Cérebro da Operação (Prompt de IA)** 🧠
+
+Agora que temos os dados brutos, precisamos transformá-los em *insights* acionáveis. Um bom prompt para análise financeira precisa de **persona definida, regras rígidas de formatação e um aviso de responsabilidade** (compliance é essencial).
+
+Abaixo está o **Prompt Profissional** pronto para ser copiado e colado no nó de IA do seu n8n (seja OpenAI, Anthropic, ou outro provedor).
+
+---
+
+### 📝 O Prompt Ideal para o Analista de IA
+
+No seu nó de IA (ex: *OpenAI Model* ou *Basic LLM Chain* no n8n), configure os campos assim:
+
+**System Prompt (Prompt do Sistema):**
+```text
+Atue como um Analista de Investimentos Sênior e Estrategista de Mercado com mais de 15 anos de experiência. Sua comunicação é clara, objetiva, profissional e livre de jargões desnecessários, mas mantém o rigor técnico.
+
+Sua tarefa é analisar os dados de mercado fornecidos e gerar um "Briefing Diário de Investimentos" em formato Markdown, pronto para ser enviado por e-mail.
+
+Regras obrigatórias de formatação e conteúdo:
+1. Visão Geral: Comece com um resumo de 2 a 3 frases sobre o sentimento geral do mercado com base nos dados (ex: "Mercado em alta com viés otimista devido à performance de...").
+2. Análise por Ativo: Para cada ativo, crie um subtítulo (##) e liste:
+   - 📊 **Ativo**: [Nome] ([Ticker])
+   - 💰 **Preço**: R$ [Preço] | 📈 **Variação**: [Variação]%
+   - ⚖️ **Veredito**: [COMPRA / MANUTENÇÃO / VENDA] (Baseado na recomendação de analistas e na variação).
+   - 💡 **Justificativa**: Uma frase curta e direta explicando o motivo do veredito.
+3. Disclaimer: Termine sempre com a seguinte frase em itálico: "_Este relatório é gerado por IA para fins informativos e educacionais, não constituindo recomendação formal de investimento._"
+4. Não invente dados. Use apenas as informações fornecidas no JSON. Se um dado estiver faltando, indique como "N/A".
+```
+
+**User Prompt (Prompt do Usuário):**
+```text
+Aqui estão os dados de mercado coletados hoje para análise:
+
+{{ $json }}
+
+Gere o briefing seguindo estritamente as regras do System Prompt.
+```
+*(Nota: O `{{ $json }}` é a expressão do n8n que injetará os dados que vieram do nó anterior, seja do Webhook ou do nó Code).*
+
+---
+
+### ⚙️ Como configurar o nó de IA no n8n (Passo a Passo)
+
+1. Adicione um nó **OpenAI** (ou o provedor de LLM que você estiver usando, como *Mistral* ou *Anthropic*).
+2. Escolha a operação **Chat** ou **Complete**.
+3. No campo **Model**, selecione `gpt-4o` ou `gpt-4o-mini` (o mini é mais barato e rápido, e funciona perfeitamente para análise de dados estruturados como este).
+4. Cole o **System Prompt** acima no campo correspondente.
+5. Cole o **User Prompt** acima no campo de mensagem do usuário.
+6. **Dica de Ouro (Temperature)**: Configure a *Temperature* (Temperatura) para **0.2** ou **0.3**. 
+   - *Por que?* Análise financeira exige precisão e determinismo. Temperaturas altas (acima de 0.7) fazem a IA "alucinar" ou ser muito criativa, o que é perigoso em dados financeiros.
+
+---
+
+### 🔍 Exemplo de Saída Esperada (O que a IA vai gerar)
+
+Se os dados do Python forem injetados corretamente, a IA retornará algo assim:
+
+```markdown
+### 📈 Visão Geral do Mercado
+O mercado apresenta um sentimento misto hoje, com resiliência no setor de commodities brasileiro, enquanto o mercado de criptoativos passa por uma leve correção de curto prazo.
+
+## 📊 Petróleo Brasileiro S.A. - Petrobras (PETR4.SA)
+- 💰 **Preço**: R$ 38.50 | 📈 **Variação**: +1.25%
+- ⚖️ **Veredito**: COMPRA
+- 💡 **Justificativa**: A variação positiva alinhada à recomendação consolidada de compra dos analistas indica um momento favorável de acumulação.
+
+## 📊 Bitcoin (BTC-USD)
+- 💰 **Preço**: $ 65,000.00 | 📈 **Variação**: -0.80%
+- ⚖️ **Veredito**: MANUTENÇÃO
+- 💡 **Justificativa**: A leve queda é dentro da volatilidade esperada; sem sinais de reversão de tendência, a manutenção da posição é a estratégia mais prudente.
+
+---
+*Este relatório é gerado por IA para fins informativos e educacionais, não constituindo recomendação formal de investimento.*
+```
+
+---
+
